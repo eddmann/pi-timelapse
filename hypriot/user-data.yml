@@ -1,0 +1,54 @@
+#cloud-config
+
+hostname: timelapse
+manage_etc_hosts: true
+
+users:
+  - name: pi
+    gecos: "Raspberry Pi"
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups: users,docker,video
+    plain_text_passwd: password
+    lock_passwd: false
+    ssh_pwauth: true
+    chpasswd: { expire: false }
+
+locale: "en_US.UTF-8"
+timezone: "Europe/London"
+
+write_files:
+  - content: |
+      allow-hotplug wlan0
+      iface wlan0 inet dhcp
+      wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+      iface default inet dhcp
+    path: /etc/network/interfaces.d/wlan0
+  - content: |
+      country=GB
+      ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+      update_config=1
+      network={
+        ssid="ssid"
+        psk="password"
+        proto=RSN
+        key_mgmt=WPA-PSK
+        pairwise=CCMP
+        auth_alg=OPEN
+      }
+    path: /etc/wpa_supplicant/wpa_supplicant.conf
+
+runcmd:
+  - 'systemctl restart avahi-daemon'
+  - 'ifup wlan0'
+  - 'mkdir -p /home/pi/photos'
+  - [
+      docker, run,
+      "-d", "--privileged",
+      "--restart", "always",
+      "--volume", "/home/pi/photos:/var/photos",
+      "--name", "timelapse",
+      "--env", "TIME_DELAY=30",
+      "--env", 'OPTIONS=""',
+      "eddmann/pi-timelapse"
+    ]
